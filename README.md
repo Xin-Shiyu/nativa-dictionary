@@ -23,4 +23,4 @@ All arguments are separated by spaces. Use quotes to prevent an argument from be
 ## About the language files.
 Make sure there are .lang files in the same folder where the executable is. The `Strings` class takes zh-CN.lang as fallback. However, when zh-CN is missing, it will use the existing .lang files. The program cannot be launched without the .lang files.
 
-The ja-JP.lang is just for testing and was made with Google Translate. Other language files are manually translated but still might contain problems. Proofreading is welcomed!
+The ja-JP.lang was just for testing and was made with Google Translate. Other language files were manually translated but might still contain problems. Proofreading is welcomed!
