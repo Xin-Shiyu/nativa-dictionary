@@ -17,6 +17,7 @@ namespace NDict
         private static readonly Dictionary<string, Dictionary<string, string>> books = new Dictionary<string, Dictionary<string, string>>();
         private static Dictionary<string, string> currentBook;
         private static readonly string myDirectory = Path.GetDirectoryName(typeof(Program).Assembly.Location);
+        private static KeyValuePair<string, Dictionary<string, string>>? lastPhraseAndBook;
 
         private static void Main(string[] args)
         {
@@ -40,7 +41,7 @@ namespace NDict
             nconsole.Bind("add", AddPhrase);
             nconsole.Bind("see", SeePhrase);
             nconsole.Bind("search", SearchPhrase);
-            nconsole.Bind("append", NotImplemented);
+            nconsole.Bind("append", AppendPhrase);
             nconsole.Bind("edit", EditPhrase);
             nconsole.Bind("remove", RemovePhrase);
 
@@ -68,6 +69,7 @@ namespace NDict
         private static void Console_CancelKeyPress(object sender, ConsoleCancelEventArgs e)
         {
             SaveAll();
+            AppDomain.Unload(AppDomain.CurrentDomain);
         }
 
         private static void NotImplemented(List<string> args)
@@ -307,6 +309,7 @@ namespace NDict
                     if (books[args[0]] == currentBook)
                     {
                         currentBook = null;
+                        lastPhraseAndBook = null;
                         nconsole.Prompt = "phrasebook>";
                     }
                     books.Remove(args[0]);
@@ -343,10 +346,9 @@ namespace NDict
                     {
                         file.Delete();
                     }
-
                     SaveAll();
                     Console.WriteLine(strings.Get("OperationSuccess"));
-                    nconsole.Prompt = nconsole.Prompt.Replace(args[0], args[1]);
+                    nconsole.Prompt = nconsole.Prompt.Replace(args[0], args[1]); //显然这会造成很奇怪的 bug 但我现在懒得改
                 }
                 else
                 {
@@ -371,6 +373,7 @@ namespace NDict
             else
             {
                 book.Add(phrase, description);
+                lastPhraseAndBook = new KeyValuePair<string, Dictionary<string, string>>(phrase, book);
                 Console.WriteLine(strings.Get("AddPhraseSuccess"), phrase);
                 return true;
             }
@@ -443,12 +446,15 @@ namespace NDict
                     bool found = false;
                     foreach (KeyValuePair<string, Dictionary<string, string>> book in books)
                     {
-                        if (book.Value.ContainsKey(args[0]))
+                        if (book.Value.TryGetValue(args[0], out string description))
                         {
                             Console.WriteLine("{0}:", book.Key);
                             nconsole.WriteTable(strings.Get("Phrase"), strings.Get("Description"));
+                            if (!found)
+                            {
+                                lastPhraseAndBook = new KeyValuePair<string, Dictionary<string, string>>(args[0], book.Value);
+                            }
                             found = true;
-                            book.Value.TryGetValue(args[0], out string description);
                             nconsole.WriteTable(args[0], description);
                         }
                     }
@@ -467,6 +473,7 @@ namespace NDict
                     if (currentBook.TryGetValue(args[0], out string description))
                     {
                         nconsole.WriteTable(args[0], description);
+                        lastPhraseAndBook = new KeyValuePair<string, Dictionary<string, string>>(args[0], currentBook);
                     }
                     else
                     {
@@ -486,6 +493,7 @@ namespace NDict
                     if (book.TryGetValue(args[0], out string description))
                     {
                         nconsole.WriteTable(args[0], description);
+                        lastPhraseAndBook = new KeyValuePair<string, Dictionary<string, string>>(args[0], book);
                     }
                     else
                     {
@@ -517,6 +525,10 @@ namespace NDict
                             if (phrase.Key.Contains(args[0]) || phrase.Value.Contains(args[0]))
                             {
                                 nconsole.WriteTable(phrase.Key, phrase.Value);
+                                if (!found)
+                                {
+                                    lastPhraseAndBook = new KeyValuePair<string, Dictionary<string, string>>(args[0], book.Value);
+                                }
                                 found = true;
                             }
                         }
@@ -534,6 +546,10 @@ namespace NDict
                         if (phrase.Key.Contains(args[0]) || phrase.Value.Contains(args[0]))
                         {
                             nconsole.WriteTable(phrase.Key, phrase.Value);
+                            if (!found)
+                            {
+                                lastPhraseAndBook = new KeyValuePair<string, Dictionary<string, string>>(args[0], currentBook);
+                            }
                             found = true;
                         }
                     }
@@ -553,6 +569,10 @@ namespace NDict
                         if (phrase.Key.Contains(args[0]) || phrase.Value.Contains(args[0]))
                         {
                             nconsole.WriteTable(phrase.Key, phrase.Value);
+                            if (!found)
+                            {
+                                lastPhraseAndBook = new KeyValuePair<string, Dictionary<string, string>>(args[0], book);
+                            }
                             found = true;
                         }
                     }
@@ -587,6 +607,7 @@ namespace NDict
                         if (nconsole.ThinkTwice(string.Format(strings.Get("RemovePhrase"), args[0]), strings.Get("ConfirmAgain")))
                         {
                             currentBook.Remove(args[0]);
+                            lastPhraseAndBook = null;
                             Console.WriteLine(strings.Get("OperationSuccess"));
                         }
                     }
@@ -605,6 +626,7 @@ namespace NDict
                         if (nconsole.ThinkTwice(string.Format(strings.Get("RemovePhrase"), args[0]), strings.Get("ConfirmAgain")))
                         {
                             book.Remove(args[0]);
+                            lastPhraseAndBook = null;
                             Console.WriteLine(strings.Get("OperationSuccess"));
                         }
                     }
@@ -637,7 +659,7 @@ namespace NDict
                     if (currentBook.TryGetValue(args[0], out string? value))
                     {
                         nconsole.WriteTable(args[0], value);
-
+                        //TO-DO: 完成
                     }
                     else
                     {
@@ -685,6 +707,32 @@ namespace NDict
                 else
                 {
                     Console.WriteLine(strings.Get("NoPhraseExists"));
+                }
+            }
+        }
+
+        private static void AppendPhrase(List<string> args) //向词汇追加解释
+        {
+            if (lastPhraseAndBook != null)
+            {
+                Console.WriteLine(strings.Get("GuessPhraseAppend"));
+                nconsole.WriteTable(lastPhraseAndBook.Value.Key, lastPhraseAndBook.Value.Value[lastPhraseAndBook.Value.Key]);
+                if (nconsole.YesOrNo())
+                {
+                    string? moreDescription = nconsole.Ask(strings.Get("EnterMoreDescription"));
+                    if (lastPhraseAndBook.Value.Value[lastPhraseAndBook.Value.Key].Length != 0
+                        || lastPhraseAndBook.Value.Value[lastPhraseAndBook.Value.Key][^1] != '\n')
+                    {
+                            lastPhraseAndBook.Value.Value[lastPhraseAndBook.Value.Key] += "\n" + moreDescription;
+                    }
+                    else
+                    {
+                        lastPhraseAndBook.Value.Value[lastPhraseAndBook.Value.Key] += moreDescription;
+                    }
+                }
+                else
+                {
+                    return; //还没想好怎么办，好像再问还不如让用户重新 see 来得方便
                 }
             }
         }

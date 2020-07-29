@@ -40,7 +40,9 @@ namespace NDict
                     Console.WriteLine("没有找到默认语言包。请从上面的语言中选择一语言，键入它的文件名（不含扩展名），并按回车。\n" +
                                       "Unable to find the fallback language pack. Choose one from the languages above, enter its filename (but not the extension), and then press the enter key.");
                     do
+                    {
                         info = new FileInfo(path + "/" + Console.ReadLine() + ".lang");
+                    }
                     while (!info.Exists);
                 }
                 else if (langs.Length == 1)

@@ -13,10 +13,11 @@ namespace Nativa
         public bool RemoveQuotesWhenCalling { get; set; }
         public bool NoHistory { get; set; }
         public bool DebugMode { get; set; }
+        public List<string> LastCommand => lastCommand;
 
         public void WriteTable(string key, string value)
         {
-            Console.WriteLine("{0, -16}\t{1}", key, value);
+            Console.WriteLine("{0, -16}\t{1}", key, value.Replace("\n", "\n                \t"));
         }
 
         public bool ThinkTwice(string question1, string question2)
@@ -49,10 +50,15 @@ namespace Nativa
             return key.KeyChar == 'y' || key.KeyChar == 'Y';
         }
 
-        public string Ask(string question)
+        public string Ask(string question, bool noEmpty = true)
         {
-            Console.Write(question);
-            return Console.ReadLine();
+            string res;
+            do
+            {
+                Console.Write(question);
+                res = Console.ReadLine();
+            } while (noEmpty && (res == null || res.Length == 0));
+            return res;
         }
 
         public string RemoveQuotes(string s)
@@ -113,6 +119,7 @@ namespace Nativa
                 return true;
             }
             // 以上是边缘情况
+            List<string>? lastCommandTemp = args;
             if (commandFuncs.TryGetValue(args[0], out CommandDelegate command))
             {
                 args.RemoveAt(0);
@@ -174,6 +181,7 @@ namespace Nativa
             {
                 defaultFunc(args);
             }
+            lastCommand = lastCommandTemp;
             return true;
         }
 
@@ -205,6 +213,7 @@ namespace Nativa
         private CommandDelegate defaultFunc;
         private string exitCommand;
         private ExitDelegate exitFunc;
+        private List<string> lastCommand;
 
         private List<string> Split(string str, char delimiter, char skip)
         {
