@@ -16,6 +16,51 @@ namespace Nativa
         public bool DebugMode { get; set; }
         public List<string> LastCommand => lastCommand;
 
+        /// <summary>
+        /// 解析一个具有“介词短语”的参数列表。
+        /// </summary>
+        /// <param name="args">原有的参数列表。</param>
+        /// <param name="expects">传入一个字典，该字典决定了所有会出现的“介词”
+        /// 以及该“介词”是否带有宾语。</param>
+        /// <param name="preps">传出一个字典，该字典决定了所有实际出现的“介词”及其宾语。
+        /// 对于不带有宾语的介词，词条的值会留空为 null。</param>
+        /// <returns>命令的直接宾语</returns>
+        public string PrepParse(
+            List<string> args,
+            Dictionary<string, bool> expects,
+            out Dictionary<string, string> preps)
+        {
+            preps = new Dictionary<string, string>();
+            if (args.Count == 0)
+            {
+                return null;
+            }
+            for (int i = 1; i < args.Count; ++i)
+            {
+                if (expects.TryGetValue(args[i], out var consumeNext))
+                {
+                    if (consumeNext)
+                    {
+                        if (i + 1 == args.Count)
+                        {
+                            throw new ArgumentException($"介词 {args[i]} 要求之后有一宾语");
+                        }
+                        preps.Add(args[i], args[i + 1]);
+                        ++i;
+                    }
+                    else
+                    {
+                        preps.Add(args[i], null);
+                    }
+                }
+                else
+                {
+                    throw new ArgumentException($"{args[i]} 不是合法的参数介词。");
+                }
+            }
+            return args[0];
+        }
+
         public void WriteTable(string key, string value)
         {
             Console.WriteLine("{0, -16}\t{1}", key, value.Replace("\n", "\n                \t"));

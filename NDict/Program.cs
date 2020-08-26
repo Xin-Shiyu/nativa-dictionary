@@ -45,6 +45,7 @@ namespace NDict
             nconsole.Bind("append", Phrases.Append);
             nconsole.Bind("edit", Phrases.Edit);
             nconsole.Bind("remove", Phrases.Remove);
+            nconsole.Bind("match", Phrases.Match);
 
             nconsole.Bind("test", Phrases.Test);
 
@@ -365,8 +366,8 @@ namespace NDict
         }
 
         public static class Phrases
-        {
-            public static bool TryAddPhrase(ref Dictionary<string, string> book, string phrase, string description)
+        {      
+            private static bool TryAdd(ref Dictionary<string, string> book, string phrase, string description)
             {
                 if (book.ContainsKey(phrase))
                 {
@@ -384,60 +385,64 @@ namespace NDict
 
             public static void Add(List<string> args)
             {
-                Dictionary<string, string> _currentBook = currentBook;
-                if (args.Count == 0)
+                try
                 {
-                    if (_currentBook == null)
+                    var phrase =
+                        nconsole.PrepParse(
+                            args,
+                            new Dictionary<string, bool>
+                            {
+                                { "meaning", true },
+                                { "to", true }
+                            },
+                            out var preps);
+                    var context = currentBook;
+
+                    if (phrase == null)
                     {
-                        string bookName = nconsole.Ask(strings.Get("EnterBookName"));
-                        if (!books.TryGetValue(bookName, out _currentBook))
+                        phrase = nconsole.Ask(strings.Get("EnterPhrase"));
+                    }
+
+                    if (preps.TryGetValue("to", out var bookName))
+                    {
+                        if (!books.TryGetValue(bookName, out context))
                         {
                             Console.WriteLine(strings.Get("BookNotFound"));
                             return;
                         }
                     }
-                    if (!TryAddPhrase(ref _currentBook, nconsole.Ask(strings.Get("EnterPhrase")), nconsole.Ask(strings.Get("EnterDescription"))))
+                    else
                     {
-                        return;
-                    }
-                }
-                else if (args.Count == 1)
-                {
-                    if (_currentBook == null)
-                    {
-                        string bookName = nconsole.Ask(strings.Get("EnterBookName"));
-                        if (!books.TryGetValue(bookName, out _currentBook))
+                        if (context == null)
                         {
-                            Console.WriteLine(strings.Get("BookNotFound"));
-                            return;
+                            bookName = nconsole.Ask("EnterBookName");
+                            if (!books.TryGetValue(bookName, out context))
+                            {
+                                Console.WriteLine(strings.Get("BookNotFound"));
+                                return;
+                            }
                         }
                     }
-                    if (!TryAddPhrase(ref _currentBook, args[0], nconsole.Ask(strings.Get("EnterDescription"))))
+
+                    if (!preps.TryGetValue("meaning", out var meaning))
                     {
+                        meaning = nconsole.Ask("EnterDescription");
+                    }
+
+                    if (context.TryAdd(phrase,meaning))
+                    {
+                        Console.WriteLine(string.Format(strings.Get("AddPhraseSuccess"), phrase));
+                    }
+                    else
+                    {
+                        Console.WriteLine(strings.Get("PhraseAlreadyExists"));
                         return;
                     }
                 }
-                else if (args.Count == 2)
+                catch (ArgumentException ex)
                 {
-                    if (_currentBook == null)
-                    {
-                        string bookName = nconsole.Ask(strings.Get("EnterBookName"));
-                        if (!books.TryGetValue(bookName, out _currentBook))
-                        {
-                            Console.WriteLine(strings.Get("BookNotFound"));
-                            return;
-                        }
-                    }
-                    if (!TryAddPhrase(ref _currentBook, args[0], args[1]))
-                    {
-                        return;
-                    }
+                    Console.WriteLine($"{strings.Get("WrongSyntax")}\n{ex.Message}");
                 }
-                else
-                {
-                    Console.WriteLine(strings.Get("WrongArgCount"));
-                }
-                return;
             }
 
             public static void See(List<string> args)
@@ -595,6 +600,44 @@ namespace NDict
                 }
             }
 
+            public static void Match(List<string> args)
+            {
+                var context = currentBook;
+
+                try
+                {
+                    var matchExp =
+                        nconsole.PrepParse(
+                            args,
+                            new Dictionary<string, bool>
+                            {
+                                { "in", true },
+                                { "by", true },
+                            },
+                            out var preps);
+
+                    if (preps.TryGetValue("in", out var bookName))
+                    {
+                        if (!books.TryGetValue(bookName, out context))
+                        {
+                            Console.WriteLine(strings.Get("BookNotFound"));
+                            return;
+                        }
+                    }
+
+                    if (context == null)
+                    {
+                        Console.WriteLine(strings.Get("NoBookOpen"));
+                        return;
+                    }
+
+                }
+                catch (ArgumentException ex)
+                {
+                    Console.WriteLine($"{strings.Get("WrongSyntax")}\n{ex.Message}");
+                }
+            }
+
             public static void Remove(List<string> args)
             {
                 if (args.Count == 1)
@@ -635,7 +678,7 @@ namespace NDict
                         }
                         else
                         {
-                            Console.WriteLine(strings.Get("PhraseNotFoundRemove"));
+                            Console.WriteLine(strings.Get("PhraseNotFoundSimple"));
                         }
                     }
                     else
