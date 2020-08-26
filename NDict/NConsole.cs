@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace Nativa
@@ -33,15 +34,29 @@ namespace Nativa
             }
             return false;
         }
-        /*
-        public string Choices(Dictionary<string,string> pairs)
+
+        const string Alphabets = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        public int Choose(List<string> choices)
         {
-            foreach(var pair in pairs)
+            int len = choices.Count;
+            for (int i = 0; i < len; ++i)
             {
-                WriteTable(pair.Value, pair.Key)
+                Console.WriteLine($"{Alphabets[i]}.\t{choices[i]}");
             }
+            Console.Write("(");
+            for (int i = 0; i < len; ++i)
+            {
+                Console.Write(Alphabets[i]);
+                if (i != len - 1)
+                {
+                    Console.Write("/");
+                }
+            }
+            Console.Write(")");
+            var key = Console.ReadKey();
+            return Alphabets.IndexOf(key.KeyChar, StringComparison.OrdinalIgnoreCase);
         }
-        */
+
         public bool YesOrNo()
         {
             Console.Write("(Y/N)?");
