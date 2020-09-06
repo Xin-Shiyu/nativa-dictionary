@@ -12,7 +12,7 @@ Here is a list of commands available:
 * `list` lists all phrases in the current book when there is a book open.
 * `list phrases` lists all phrases in all existing books, while you can also use `list phrases in [name]` to list phrases in a specific book.
 * `add` alone enables you to add a new phrase. With no book open, it will ask you which book to add to, or it will add to the current book. It will then ask you what the phrase is and its description.
-* `add [phrase]` and `add [phrase] [description]` are also okay. Be careful when adding phrases with spaces in them. You can use quotes to prevent phrases from being separated.
+* `add [phrase]` and `add [phrase] meaning [description]` are also okay. Be careful when adding phrases with spaces in them. You can use quotes to prevent phrases from being separated.
 * `remove [phrase]` is used to remove a phrase. To use this command, there must be a book open. You might as well use `remove [phrase] from [book]` to remove phrase from a specific book without opening it.
 * `see [phrase]` will match the phrase with the exact same name in all the phrasebooks, with its description. You can simply type `[phrase]` to see a phrase that does not collide with the names of the commands.
 * `search [string]` will search in both the phrases and descriptions for the given string.
