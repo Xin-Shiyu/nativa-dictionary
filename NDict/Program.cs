@@ -762,7 +762,7 @@ namespace NDict
                     {
                         if (currentBook.TryGetValue(args[0], out string? value))
                         {
-                            nconsole.EditText(value);
+                            //nconsole.EditText(value);
                         }
                         else
                         {
