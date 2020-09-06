@@ -10,11 +10,11 @@ namespace Nativa
         public delegate void CommandDelegate(List<string> args);
         public delegate bool ExitDelegate(List<string> args);
         public string Prompt { get; set; }
-        public StringBuilder History { get; }
+
         public bool RemoveQuotesWhenCalling { get; set; }
         public bool NoHistory { get; set; }
         public bool DebugMode { get; set; }
-        public List<string> LastCommand => lastCommand;
+        //public List<string> LastCommand => lastCommand;
 
         /// <summary>
         /// 解析一个具有“介词短语”的参数列表。
@@ -116,7 +116,7 @@ namespace Nativa
             do
             {
                 Console.Write(question);
-                res = Console.ReadLine();
+                res = ReadLineUtilities.ReadLine();
             } while (noEmpty && (res == null || res.Length == 0));
             return res;
         }
@@ -173,13 +173,15 @@ namespace Nativa
                     if (!got) yield break;
                 }
             }
-            string? commandLine = ReadLineUtilities.ReadLine(defaultSuggestionProvider);
+            string? commandLine = ReadLineUtilities.ReadLine(defaultSuggestionProvider, in history);
+            if (string.IsNullOrWhiteSpace(commandLine)) return true;
+
             if (!NoHistory)
             {
-                History.Append(commandLine + "\n");
+                history.Add(commandLine);
             }
 
-            List<string> args = Split(commandLine, ' ', '\"');
+            List<string> args = CommandUtilities.Split(commandLine, ' ', '\"');
             if (RemoveQuotesWhenCalling)
             {
                 for (int i = 0; i < args.Count; ++i)
@@ -196,7 +198,7 @@ namespace Nativa
                 return true;
             }
             // 以上是边缘情况
-            List<string>? lastCommandTemp = args;
+            //List<string>? lastCommandTemp = args;
             if (commandFuncs.TryGetValue(args[0], out CommandDelegate command))
             {
                 args.RemoveAt(0);
@@ -225,7 +227,7 @@ namespace Nativa
                         case "alias":
                             Alias(Ask("命令原名："), Ask("命令别名："));
                             break;
-                        case "history":
+                        /*case "history":
                             if (NoHistory)
                             {
                                 Console.WriteLine("[NConsole] 程序关闭了命令历史功能。");
@@ -235,7 +237,7 @@ namespace Nativa
                                 Console.WriteLine(History.ToString());
                             }
 
-                            break;
+                            break;*/
                         default:
                             Console.WriteLine("[NConsole] 不支持当前操作。");
                             break;
@@ -258,7 +260,7 @@ namespace Nativa
             {
                 defaultFunc(args);
             }
-            lastCommand = lastCommandTemp;
+            //lastCommand = lastCommandTemp;
             return true;
         }
 
@@ -282,7 +284,7 @@ namespace Nativa
         {
             Prompt = ">";
             commandFuncs = new Dictionary<string, CommandDelegate>();
-            History = new StringBuilder();
+            history = new List<string>();
         }
 
         private DateTime lastTime = DateTime.Now;
@@ -290,9 +292,13 @@ namespace Nativa
         private CommandDelegate defaultFunc;
         private string exitCommand;
         private ExitDelegate exitFunc;
-        private List<string> lastCommand;
+        private List<string> history;
+        //private List<string> lastCommand;
+    }
 
-        private List<string> Split(string str, char delimiter, char skip)
+    class CommandUtilities
+    {
+        public static List<string> Split(string str, char delimiter, char skip)
         {
             List<string> res = new List<string>();
             int charCount = 0;

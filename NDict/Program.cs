@@ -24,7 +24,8 @@ namespace NDict
         private static void Main(string[] args)
         {
             AppDomain.CurrentDomain.ProcessExit += CurrentDomain_ProcessExit;
-            Console.CancelKeyPress += Console_CancelKeyPress;
+            Console.ForegroundColor = ConsoleColor.White;
+            //Console.CancelKeyPress += Console_CancelKeyPress;
             Console.InputEncoding = System.Text.Encoding.Unicode;
             Console.OutputEncoding = System.Text.Encoding.Unicode;
             strings = new Strings(myDirectory, lang: args.Length == 1 ? args[0] : System.Threading.Thread.CurrentThread.CurrentCulture.Name);

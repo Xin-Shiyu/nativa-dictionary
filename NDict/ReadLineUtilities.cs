@@ -41,15 +41,25 @@ namespace Nativa
         }
         */
 
-        public static string ReadLine(SuggestionsDelegate getSuggestions = null)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="getSuggestions"></param>
+        /// <returns>如果用户用 Ctrl+C 中止则返回 null</returns>
+        public static string ReadLine(SuggestionsDelegate getSuggestions = null, in List<string> history = null)
         {
             // var widths = new List<int>{ Console.CursorLeft };
             var atChar = 0;
             var res = new StringBuilder();
             var doUpdateEnumerator = true;
+            var mostLeft = Console.CursorLeft;
+            var mostTop = Console.CursorTop;
+            var historyIndex = 0;
             IEnumerator<string> suggestionEnumerator = null;
             for (; ; )
             {
+                var doRenderAgain = true;
+                Console.TreatControlCAsInput = true;
                 var key = Console.ReadKey(true);
                 if (key.Key == ConsoleKey.Tab)
                 {
@@ -62,7 +72,7 @@ namespace Nativa
                         }
                         if (suggestionEnumerator.MoveNext())
                         {
-                            //clear();
+                            clear();
                             foreach (char c in suggestionEnumerator.Current)
                             {
                                 PutChar(c, ref atChar, res);
@@ -70,51 +80,158 @@ namespace Nativa
                         }
                     }
                 }
+                else if (key.Key == ConsoleKey.UpArrow)
+                {
+                    --historyIndex;
+                    clear();
+                    PutHistory(history, ref atChar, res, ref historyIndex);
+                }
+                else if (key.Key == ConsoleKey.DownArrow)
+                {
+                    ++historyIndex;
+                    clear();
+                    PutHistory(history, ref atChar, res, ref historyIndex);
+                }
                 else if (key.Key == ConsoleKey.Enter)
                 {
                     Console.WriteLine();
+                    Console.ForegroundColor = ConsoleColor.White;
                     return res.ToString();
+                }
+                else if (key.Modifiers == ConsoleModifiers.Control &&
+                         key.Key == ConsoleKey.C)
+                {
+                    // 中止读取，返回 null
+                    Console.WriteLine();
+                    Console.ForegroundColor = ConsoleColor.White;
+                    return null;
                 }
                 else if (char.IsControl(key.KeyChar))
                 {
-                    if (LineManipulate(key, ref atChar, res)) doUpdateEnumerator = true;
+                    if (LineManipulate(key, ref atChar, res))
+                    {
+                        doUpdateEnumerator = true;
+                    }
+                    else
+                    {
+                        doRenderAgain = false;
+                    }
                 }
                 else
                 {
                     PutChar(key.KeyChar, ref atChar, res);
                     doUpdateEnumerator = true;
                 }
-            }/*
+                if (doRenderAgain) Render(res, mostLeft, mostTop);
+            }
             void clear()
             {
+                Console.CursorLeft = mostLeft;
+                Console.CursorTop = mostTop;
+                foreach (var c in res.ToString())
+                {
+                    if (IsCJK(c)) Console.Write("  ");
+                    else Console.Write(' ');
+                }
                 res.Clear();
                 atChar = 0;
-                Console.CursorLeft = widths[0];
-                int actualLength = widths[^1] - widths[0];
-                for (int i = 0; i < actualLength; ++i) Console.Write(' ');
-                if (widths.Count > 1) widths.RemoveRange(1, widths.Count - 1);
-                Console.CursorLeft = widths[0];
-            }*/
+                Console.CursorLeft = mostLeft;
+                Console.CursorTop = mostTop;
+            }
+        }
+
+        private static void PutHistory(List<string> history, ref int atChar, StringBuilder res, ref int historyIndex)
+        {
+            if (history == null) return;
+            if (historyIndex > 0) historyIndex = -history.Count;
+            if (historyIndex < -history.Count) historyIndex = 0;
+            if (historyIndex != 0)
+            {
+                foreach (var c in history[history.Count + historyIndex])
+                {
+                    PutChar(c, ref atChar, res);
+                }
+            }
+        }
+
+        private static void Render(StringBuilder res, int mostLeft, int mostTop, string tips = "", int lastTipsLength = 0)
+        {
+            var parts = CommandUtilities.Split(res.ToString(), ' ', '\"');
+            int left = 0;
+            bool doColor = true;
+            int end = parts.Count - 1;
+            for (int i = 0; i <= end; ++i)
+            {
+                var len = parts[i].Length;
+                if (i != end) ++len;
+                if (doColor) RecolorText(mostLeft, mostTop, left, len, res, ConsoleColor.Cyan);
+                else RecolorText(mostLeft, mostTop, left, len, res, ConsoleColor.White);
+                left += len;
+                doColor = !doColor;
+            }
+            if (tips != "")
+            { 
+                int oldLeft = Console.CursorLeft;
+                int oldTop = Console.CursorTop;
+                Console.ForegroundColor = ConsoleColor.DarkGray;
+                Console.Write(tips);
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.SetCursorPosition(oldLeft, oldTop);
+            }
+        }
+
+        private static void RecolorText(int mostLeft, int mostTop, int begin, int length, StringBuilder str, ConsoleColor color)
+        {
+            int oldLeft = Console.CursorLeft;
+            int oldTop = Console.CursorTop;
+            int currentLeft = mostLeft;
+            int currentTop = mostTop;
+            for (int i = 0; ; ++i)
+            {
+                if (i == begin)
+                {
+                    Console.SetCursorPosition(currentLeft, currentTop);
+                    Console.ForegroundColor = color;
+                    char[] dest = new char[length];
+                    str.CopyTo(begin, dest, length);
+                    Console.Write(dest);
+                    break;
+                }
+                currentLeft += GetCharWidth(str[i]);
+                if (currentLeft >= Console.BufferWidth)
+                {
+                    currentLeft = 0;
+                    currentTop += 1;
+                }
+            }
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.SetCursorPosition(oldLeft, oldTop);
         }
 
         private static void PutChar(
             char keyChar,
             ref int atChar,
             // List<int> widths,
-            StringBuilder str)
+            StringBuilder str,
+            bool lazyWrite = true)
         {
+            //Console.ForegroundColor = color;
             bool forceNewLine = false;
             int oldCursorTop = Console.CursorTop;
-            if (Console.CursorLeft + GetCharWidth(keyChar) >= Console.BufferWidth) forceNewLine = true;
-            Console.Write(keyChar);
-            if (forceNewLine && oldCursorTop == Console.CursorTop)
-            {
-                Console.SetCursorPosition(0, Console.CursorTop + 1);
-                //强制光标换行
-            }
-            PrintAfter(atChar, str);
+            int currentCharWidth = GetCharWidth(keyChar);
             str.Insert(atChar, keyChar);
-            ++atChar;
+            if (!lazyWrite)
+            {
+                if (Console.CursorLeft + currentCharWidth >= Console.BufferWidth) forceNewLine = true;
+                Console.Write(keyChar);
+                if (forceNewLine && oldCursorTop == Console.CursorTop)
+                {
+                    Console.SetCursorPosition(0, Console.CursorTop + 1);
+                    //强制光标换行
+                }
+            }
+            MoveCursorRight(ref atChar, str);
+            if (!lazyWrite) PrintAfter(atChar, str);
         }
 
         private static bool LineManipulate(
@@ -167,9 +284,19 @@ namespace Nativa
         {
             var oldLeft = Console.CursorLeft;
             var oldTop = Console.CursorTop;
-            if (atChar != str.Length) Console.Write(str.ToString()[atChar..]);
-            for (int i = 0; i < diff; ++i) Console.Write(' ');
+            while (atChar != str.Length)
+            {
+                MoveCursorRight(ref atChar, str); // 这里的 atChar 是一个拷贝，所以可以传进去，不会影响
+                // 这个可能会导致东西难以维护，但反正这整个模块都摇摇欲坠的，不差这一处。
+                // 这样不用真的操作 Console，效率会高不少，反正之后还要画的。
+            }
+            Erase(diff);
             Console.SetCursorPosition(oldLeft, oldTop);
+        }
+
+        private static void Erase(int length)
+        {
+            for (int i = 0; i < length; ++i) Console.Write(' ');
         }
 
         private static void PrintAfter(
