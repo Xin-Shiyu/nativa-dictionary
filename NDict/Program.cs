@@ -35,7 +35,7 @@ namespace NDict
                     if (currentBook == null) yield break;
                     foreach (var phrase in currentBook.Keys)
                     {
-                        yield return phrase;
+                        yield return $"\"{phrase}\"";
                     }
                     yield break;
                 case "[phrases/books]":
@@ -78,10 +78,10 @@ namespace NDict
                 "phrases in [book]");
 
             nconsole.Bind("add", Phrases.Add, 
-                "[phrase]",
-                "[phrase] meaning [description]",
-                "[phrase] to [book]",
-                "[phrase] meaning [description] to [book]");
+                "[new-phrase]",
+                "[new-phrase] meaning [description]",
+                "[new-phrase] to [book]",
+                "[new-phrase] meaning [description] to [book]");
             nconsole.Bind("see", Phrases.See,
                 "[phrase]",
                 "[phrase] in [book]");

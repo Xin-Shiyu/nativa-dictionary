@@ -170,8 +170,64 @@ namespace Nativa
             }
         }
 
-        private static void Render(StringBuilder res, int mostLeft, int mostTop, string tips = "")
+        private class TempText
+        {
+            public string Content { get; private set; }
+            public ConsoleColor Color { get; private set; }
+            private int Left;
+            private int Top;
+            private int Length;
+
+            public TempText Modify(string content, int left, int top, ConsoleColor color)
+            {
+                Content = content;
+                Left = left;
+                Top = top;
+                Color = color;
+                return this;
+            }
+
+            public void Render()
+            {
+                if (string.IsNullOrEmpty(Content)) return;
+                var oldLeft = Console.CursorLeft;
+                var oldTop = Console.CursorTop;
+                var oldColor = Console.ForegroundColor;
+                Console.SetCursorPosition(Left, Top);
+                Console.ForegroundColor = Color;
+                Console.Write(Content);
+                if (Console.CursorTop == oldTop) Length = Console.CursorLeft - oldLeft;
+                else Length = Console.CursorLeft + (Console.CursorTop - oldTop) *Console.BufferWidth - oldLeft;
+                Console.SetCursorPosition(oldLeft, oldTop);
+                Console.ForegroundColor = oldColor;
+            }
+
+            public void Erase()
+            {
+                if (string.IsNullOrEmpty(Content)) return;
+                var oldLeft = Console.CursorLeft;
+                var oldTop = Console.CursorTop;
+                Console.SetCursorPosition(Left, Top);
+                Console.ForegroundColor = Color;
+                for (int i = 0; i < Length; ++i) Console.Write(' ');
+                Console.SetCursorPosition(oldLeft, oldTop);
+                Content = "";
+                Length = 0;
+            }
+        }
+
+        private static class RenderManager
+        {
+            public static TempText currentTips = new TempText();
+        }
+
+        private static void Render(
+            StringBuilder res,
+            int mostLeft,
+            int mostTop,
+            string tips = "")
         { // 本函数的全部实现不作为最终方案，现在只是一个过渡阶段。
+            RenderManager.currentTips?.Erase();
             var parts = CommandUtilities.Split(res.ToString(), ' ', '\"'); // 直接用 nconsole 的命令分解方式其实是耦合度很高的，上色和命令语法提示应该都由上层提供
             int left = 0;
             bool doColor = true;
@@ -186,13 +242,14 @@ namespace Nativa
                 doColor = !doColor;
             }
             if (tips != "")
-            { 
-                int oldLeft = Console.CursorLeft;
-                int oldTop = Console.CursorTop;
-                Console.ForegroundColor = ConsoleColor.DarkGray;
-                Console.Write(tips);
-                Console.ForegroundColor = ConsoleColor.White;
-                Console.SetCursorPosition(oldLeft, oldTop);
+            {
+                RenderManager.currentTips
+                    .Modify(
+                        tips,
+                        Console.CursorLeft,
+                        Console.CursorTop,
+                        ConsoleColor.DarkGray)
+                    .Render();
             }
         }
 
