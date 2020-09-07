@@ -18,7 +18,8 @@ namespace Nativa
 
         private static int GetCharWidth(char c) => IsCJK(c) ? 2 : 1;
 
-        public delegate IEnumerable<string> SuggestionsDelegate(string text);
+        public delegate IEnumerable<string> SuggestionsDelegate(StringBuilder text);
+        public delegate string PatternDelegate(StringBuilder text);
 
         /*
         /// <summary>
@@ -46,7 +47,11 @@ namespace Nativa
         /// </summary>
         /// <param name="getSuggestions"></param>
         /// <returns>如果用户用 Ctrl+C 中止则返回 null</returns>
-        public static string ReadLine(SuggestionsDelegate getSuggestions = null, in List<string> history = null)
+        public static string ReadLine(
+            SuggestionsDelegate getSuggestions = null,
+            in List<string> history = null,
+            PatternDelegate getPossiblePattern = null
+            )
         {
             // var widths = new List<int>{ Console.CursorLeft };
             var atChar = 0;
@@ -54,7 +59,10 @@ namespace Nativa
             var doUpdateEnumerator = true;
             var mostLeft = Console.CursorLeft;
             var mostTop = Console.CursorTop;
-            var historyIndex = 0;
+            var historyIndex = 0; // 历史记录当中所在的位置
+
+            var lastAutocompLength = 0;
+
             IEnumerator<string> suggestionEnumerator = null;
             for (; ; )
             {
@@ -67,16 +75,20 @@ namespace Nativa
                     {
                         if (doUpdateEnumerator)
                         {
-                            suggestionEnumerator = getSuggestions(res.ToString()).GetEnumerator();
+                            suggestionEnumerator = getSuggestions(res).GetEnumerator();
                             doUpdateEnumerator = false;
+                            lastAutocompLength = 0;
                         }
                         if (suggestionEnumerator.MoveNext())
                         {
-                            clear();
+                            for (int i = 0; i < lastAutocompLength; ++i) Backspace(ref atChar, res);
+
                             foreach (char c in suggestionEnumerator.Current)
                             {
                                 PutChar(c, ref atChar, res);
                             }
+
+                            lastAutocompLength = suggestionEnumerator.Current.Length;
                         }
                     }
                 }
@@ -122,7 +134,11 @@ namespace Nativa
                     PutChar(key.KeyChar, ref atChar, res);
                     doUpdateEnumerator = true;
                 }
-                if (doRenderAgain) Render(res, mostLeft, mostTop);
+                if (doRenderAgain) 
+                    if (getPossiblePattern != null) 
+                        Render(res, mostLeft, mostTop, getPossiblePattern(res));
+                    else
+                        Render(res, mostLeft, mostTop);
             }
             void clear()
             {
@@ -154,9 +170,9 @@ namespace Nativa
             }
         }
 
-        private static void Render(StringBuilder res, int mostLeft, int mostTop, string tips = "", int lastTipsLength = 0)
-        {
-            var parts = CommandUtilities.Split(res.ToString(), ' ', '\"');
+        private static void Render(StringBuilder res, int mostLeft, int mostTop, string tips = "")
+        { // 本函数的全部实现不作为最终方案，现在只是一个过渡阶段。
+            var parts = CommandUtilities.Split(res.ToString(), ' ', '\"'); // 直接用 nconsole 的命令分解方式其实是耦合度很高的，上色和命令语法提示应该都由上层提供
             int left = 0;
             bool doColor = true;
             int end = parts.Count - 1;
@@ -244,8 +260,7 @@ namespace Nativa
             switch (keyInfo.Key)
             {
                 case ConsoleKey.Backspace:
-                    if (MoveCursorLeft(ref atChar, str))
-                        DeleteCurrentChar(atChar, str);
+                    Backspace(ref atChar, str);
                     return true;
                 case ConsoleKey.Delete:
                     DeleteCurrentChar(atChar, str);
@@ -265,6 +280,12 @@ namespace Nativa
                 default:
                     return false;
             }
+        }
+
+        private static void Backspace(ref int atChar, StringBuilder str)
+        {
+            if (MoveCursorLeft(ref atChar, str))
+                DeleteCurrentChar(atChar, str);
         }
 
         private static void DeleteCurrentChar(int atChar, StringBuilder str)

@@ -15,7 +15,7 @@ namespace NDict
             }
             else
             {
-                return "文本资源丢失 Text Resource Missing";
+                return "文本资源丢失 Text Resource Missing: " + str;
             }
         }
 

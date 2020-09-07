@@ -21,6 +21,36 @@ namespace NDict
         private static readonly string myDirectory = Path.GetDirectoryName(typeof(Program).Assembly.Location);
         private static KeyValuePair<string, Dictionary<string, string>>? lastPhraseAndBook;
 
+        private static IEnumerable<string> AutocompleteProvider(string commandPattern)
+        {
+            switch (commandPattern)
+            {
+                case "[book]":
+                    foreach (var book in books.Keys)
+                    {
+                        yield return book;
+                    }
+                    yield break;
+                case "[phrase]":
+                    if (currentBook == null) yield break;
+                    foreach (var phrase in currentBook.Keys)
+                    {
+                        yield return phrase;
+                    }
+                    yield break;
+                case "[phrases/books]":
+                    yield return "phrases";
+                    yield return "books";
+                    yield break;
+                case "[method]":
+                    yield return "wildcard";
+                    yield return "regex";
+                    yield break;
+                default:
+                    yield break;
+            }
+        }
+
         private static void Main(string[] args)
         {
             AppDomain.CurrentDomain.ProcessExit += CurrentDomain_ProcessExit;
@@ -34,27 +64,49 @@ namespace NDict
             Console.Title = strings.Get("LoadingData");
             Load();
 
-            nconsole.Bind("open", Books.Open);
+            nconsole.Bind("open", Books.Open, 
+                "[book]");
             nconsole.Bind("close", Books.CloseWrapper);
-            nconsole.Bind("create", Books.Create);
-            nconsole.Bind("destroy", Books.Destroy);
-            nconsole.Bind("rename", Books.Rename);
-            nconsole.Bind("list", List);
+            nconsole.Bind("create", Books.Create, 
+                "[book]");
+            nconsole.Bind("destroy", Books.Destroy, 
+                "[book]");
+            nconsole.Bind("rename", Books.Rename, 
+                "[book] [new-name]");
+            nconsole.Bind("list", List, 
+                "[phrases/books]",
+                "phrases in [book]");
 
-            nconsole.Bind("add", Phrases.Add);
-            nconsole.Bind("see", Phrases.See);
-            nconsole.Bind("search", Phrases.Search);
+            nconsole.Bind("add", Phrases.Add, 
+                "[phrase]",
+                "[phrase] meaning [description]",
+                "[phrase] to [book]",
+                "[phrase] meaning [description] to [book]");
+            nconsole.Bind("see", Phrases.See,
+                "[phrase]",
+                "[phrase] in [book]");
+            nconsole.Bind("search", Phrases.Search,
+                "[phrase]",
+                "[phrase] in [book]");
             //nconsole.Bind("append", Phrases.Append);
             nconsole.Bind("edit", Phrases.Edit);
-            nconsole.Bind("remove", Phrases.Remove);
-            nconsole.Bind("match", Phrases.Match);
+            nconsole.Bind("remove", Phrases.Remove,
+                "[phrase]",
+                "[phrase] from [book]");
+            nconsole.Bind("match", Phrases.Match,
+                "[pattern]",
+                "[pattern] by [method]",
+                "[pattern] in [book]",
+                "[pattern] by [method] in [book]");
 
             nconsole.Bind("test", Phrases.Test);
 
-            nconsole.Bind("save", SaveWrapper);
+            nconsole.Bind("save", SaveWrapper,
+                "[book]");
 
             nconsole.BindExit("exit", Exit);
-            nconsole.Bind("language", ChangeLang);
+            nconsole.Bind("language", ChangeLang,
+                "[id]");
             nconsole.Alias("language", "lang");
 
             nconsole.BindDefault(Phrases.SeeQuick);
@@ -63,7 +115,7 @@ namespace NDict
             Console.Clear();
             Console.Title = "NDict";
             Console.WriteLine("{0}\n", strings.Get("Welcome"));
-            nconsole.Run();
+            nconsole.Run(AutocompleteProvider);
         }
 
         private static void CurrentDomain_ProcessExit(object? sender, EventArgs e)
@@ -418,7 +470,7 @@ namespace NDict
                     {
                         if (askIfNull)
                         {
-                            bookName = nconsole.Ask("EnterBookName");
+                            bookName = nconsole.Ask(strings.Get("EnterBookName"));
                             if (!books.TryGetValue(bookName, out context))
                             {
                                 Console.WriteLine(strings.Get("BookNotFound"));

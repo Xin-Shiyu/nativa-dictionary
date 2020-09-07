@@ -14,6 +14,10 @@ namespace Nativa
         public bool RemoveQuotesWhenCalling { get; set; }
         public bool NoHistory { get; set; }
         public bool DebugMode { get; set; }
+
+        public delegate IEnumerable<string> PossibleArgumentDelegate(string argumentPattern);
+        public PossibleArgumentDelegate ArgumentAutocompleteProvider;
+
         //public List<string> LastCommand => lastCommand;
 
         /// <summary>
@@ -53,7 +57,7 @@ namespace Nativa
                         preps.TryAdd(args[i], null);
                     }
                 }
-                else
+                else if (!string.IsNullOrEmpty(args[i]))
                 {
                     throw new ArgumentException($"{args[i]} 不是合法的参数介词。");
                 }
@@ -141,8 +145,9 @@ namespace Nativa
             }
         }
 
-        public void Run()
+        public void Run(PossibleArgumentDelegate argumentAutocompleteProvider = null)
         {
+            ArgumentAutocompleteProvider = argumentAutocompleteProvider;
             do
             {
                 if (DebugMode)
@@ -157,23 +162,87 @@ namespace Nativa
 
         public bool ProcessLine()
         {
-            IEnumerable<string> defaultSuggestionProvider(string CommandPart)
+            string matchedPattern = null;
+
+            IEnumerable<string> defaultSuggestionProvider(StringBuilder commandPart) // 此处实现混乱，大量地方都十分浪费
             {
-                for (; ; )
+                if (matchedPattern != null)
                 {
-                    bool got = false;
-                    foreach (var pair in commandFuncs)
+                    if (matchedPattern.StartsWith('['))
                     {
-                        if (pair.Key.StartsWith(CommandPart))
+                        if (ArgumentAutocompleteProvider != null)
                         {
-                            got = true;
-                            yield return pair.Key;
+                            if (commandPart.Length != 0)
+                            {
+                                var partialArg = CommandUtilities.Split(commandPart.ToString(), ' ', '\"')[^1];
+                                foreach (var possibility in ArgumentAutocompleteProvider(matchedPattern))
+                                {
+                                    if (possibility.StartsWith(partialArg)) yield return possibility[partialArg.Length..];
+                                }
+                            }
+                            else
+                            {
+                                foreach (var possibility in ArgumentAutocompleteProvider(matchedPattern))
+                                {
+                                    yield return possibility;
+                                }
+                            }
                         }
                     }
-                    if (!got) yield break;
+                    else
+                    {
+                        if (commandPart.Length != 0)
+                        {
+                            var partialArg = CommandUtilities.Split(commandPart.ToString(), ' ', '\"')[^1];
+                            yield return matchedPattern[partialArg.Length..];
+                        }
+                        else
+                        {
+                            yield return matchedPattern;
+                        }
+                    }
                 }
+                else
+                {
+                    foreach (var command in commandFuncs)
+                    {
+                        if (command.Key.StartsWith(commandPart.ToString())) yield return command.Key[commandPart.Length..];
+                    }
+                }
+                yield break;
             }
-            string? commandLine = ReadLineUtilities.ReadLine(defaultSuggestionProvider, in history);
+
+            string commandPatternProvider(StringBuilder text)
+            {
+                if (text.Length == 0) return "";
+                matchedPattern = null;
+                var parts = CommandUtilities.Split(text.ToString(), ' ', '\"'); //再改
+                if (commandPatterns.TryGetValue(parts[0], out var possiblePatterns))
+                {
+                    foreach (var pattern in possiblePatterns)
+                    {
+                        if (parts.Count - 1 > pattern.Length) continue;
+                        for (int i = 1; i < parts.Count; ++i)
+                        {
+                            if (parts[i].Length == 0)
+                            {
+                                matchedPattern = pattern[i - 1];
+                                return pattern[i - 1];
+                            }
+                            if (!(pattern[i - 1].StartsWith(parts[i]) ||
+                                pattern[i - 1].StartsWith('['))) break;
+                            else
+                            {
+                                matchedPattern = pattern[i - 1]; //这应该是最佳匹配
+                            }
+                        }
+                    }
+                }
+                return "";
+            }
+
+            string? commandLine = ReadLineUtilities.ReadLine(defaultSuggestionProvider, in history, commandPatternProvider);
+
             if (string.IsNullOrWhiteSpace(commandLine)) return true;
 
             if (!NoHistory)
@@ -264,9 +333,15 @@ namespace Nativa
             return true;
         }
 
-        public void Bind(string command, CommandDelegate commandDelegate)
+        public void Bind(string command, CommandDelegate commandDelegate, params string[] usageList)
         {
             commandFuncs.Add(command, commandDelegate);
+            var temp = new List<string[]>();
+            foreach (var usage in usageList)
+            {
+                temp.Add(usage.Split(' '));
+            }
+            commandPatterns.Add(command, temp);
         }
 
         public void BindExit(string command, ExitDelegate exitDelegate)
@@ -284,11 +359,13 @@ namespace Nativa
         {
             Prompt = ">";
             commandFuncs = new Dictionary<string, CommandDelegate>();
+            commandPatterns = new Dictionary<string, List<string[]>>();
             history = new List<string>();
         }
 
         private DateTime lastTime = DateTime.Now;
         private readonly Dictionary<string, CommandDelegate> commandFuncs;
+        private readonly Dictionary<string, List<string[]>> commandPatterns;
         private CommandDelegate defaultFunc;
         private string exitCommand;
         private ExitDelegate exitFunc;
