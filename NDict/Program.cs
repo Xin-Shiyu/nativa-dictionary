@@ -35,7 +35,8 @@ namespace NDict
                     if (currentBook == null) yield break;
                     foreach (var phrase in currentBook.Keys)
                     {
-                        yield return $"\"{phrase}\"";
+                        if (phrase.Contains(' ')) yield return $"\"{phrase}\"";
+                        else yield return phrase;
                     }
                     yield break;
                 case "[phrases/books]":

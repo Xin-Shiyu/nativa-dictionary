@@ -204,10 +204,9 @@ namespace Nativa
                 }
                 else
                 {
-                    var commandPartStr = commandPart.ToString();
                     foreach (var command in commandFuncs)
-                    {
-                        if (command.Key.StartsWith(commandPartStr)) yield return command.Key[commandPart.Length..];
+                    { // 注意每次 yield 之后都会发生变化！
+                        if (command.Key.StartsWith(commandPart.ToString())) yield return command.Key[commandPart.Length..];
                     }
                 }
                 yield break;
