@@ -389,6 +389,7 @@ namespace NDict
 
             public static void Destroy(List<string> args)
             {
+                throw new NotImplementedException();
                 if (args.Count != 1)
                 {
                     Console.WriteLine(strings.Get("WrongArgCount"));
@@ -404,7 +405,7 @@ namespace NDict
                             nconsole.Prompt = "phrasebook>";
                         }
                         books.Remove(args[0]);
-                        FileInfo file = new FileInfo(myDirectory + "/" + args[0] + ".ndict");
+                        FileInfo file = new FileInfo(myDirectory + "/" + args[0] + ".ndict"); //TO-DO: 支持新格式
                         if (file.Exists)
                         {
                             file.Delete();
@@ -421,6 +422,7 @@ namespace NDict
 
             public static void Rename(List<string> args)
             {
+                throw new NotImplementedException();
                 if (args.Count != 2)
                 {
                     Console.WriteLine(strings.Get("WrongArgCount"));
