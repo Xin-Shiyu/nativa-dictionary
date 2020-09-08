@@ -6,6 +6,7 @@ using System.IO;
 using System.Text;
 using System.Linq;
 using System.Xml;
+using System.Globalization;
 
 namespace Nativa
 {
@@ -40,11 +41,14 @@ namespace Nativa
 
         public VersionedDictionary(string path)
         {
+            cache = new Dictionary<string, string>();
+            operations = new List<Operation>();
             this.path = path;
             var dir = new DirectoryInfo(path);
+            if (!dir.Exists) dir.Create();
             var files = dir
                 .GetFiles("*.opg", SearchOption.TopDirectoryOnly)
-                .OrderBy(f => DateTime.Parse(Path.GetFileNameWithoutExtension(f.Name)));
+                .OrderBy(f => DateTime.ParseExact(Path.GetFileNameWithoutExtension(f.Name), "yyyyMMddHHmmssffff", CultureInfo.InvariantCulture));
             foreach (FileInfo file in files)
             {
                 XmlDocument xml = new XmlDocument();
@@ -70,9 +74,38 @@ namespace Nativa
 
         public void Save()
         {
+            if (operations.Count == 0) return;
             var dir = new DirectoryInfo(path);
-            var file = dir.GetFiles("*.opg", SearchOption.TopDirectoryOnly).Select(f => int.Parse(f.Name)).Max();
-
+            var filename = DateTime.Now.ToString("yyyyMMddHHmmssffff");
+            XmlDocument xml = new XmlDocument();
+            xml.AppendChild(xml.CreateXmlDeclaration("1.0", "utf-16", null));
+            xml.AppendChild(xml.CreateElement("group"));
+            foreach (var op in operations)
+            {
+                XmlElement element;
+                switch (op.Type)
+                {
+                    case OperationType.Add:
+                        element = xml.CreateElement("add");
+                        element.SetAttribute("key", op.Key);
+                        element.SetAttribute("val", op.Value);
+                        xml.DocumentElement.AppendChild(element);
+                        break;
+                    case OperationType.Set:
+                        element = xml.CreateElement("set");
+                        element.SetAttribute("key", op.Key);
+                        element.SetAttribute("val", op.Value);
+                        xml.DocumentElement.AppendChild(element);
+                        break;
+                    case OperationType.Del:
+                        element = xml.CreateElement("del");
+                        element.SetAttribute("key", op.Key);
+                        xml.DocumentElement.AppendChild(element);
+                        break;
+                }
+            }
+            xml.Save(Path.Combine(path, $"{filename}.opg"));
+            operations.Clear();
         }
 
         public ICollection<string> Keys => cache.Keys;

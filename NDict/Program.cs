@@ -11,7 +11,21 @@ namespace NDict
 {
     static class Compatibility
     {
-
+        public static VersionedDictionary NDictFileConvert(FileInfo file, string newDirectory)
+        {
+            VersionedDictionary res = 
+                new VersionedDictionary(
+                    Path.Combine(newDirectory, Path.GetFileNameWithoutExtension(file.Name)));
+            XmlDocument xml = new XmlDocument();
+            xml.Load(file.FullName);
+            XmlNode root = xml.SelectSingleNode("book");
+            foreach (XmlElement node in root.ChildNodes)
+            {
+                res.Add(node.GetAttribute("key"), node.GetAttribute("val"));
+            }
+            res.Save();
+            return res;
+        }
     }
 
     internal class Program
@@ -24,6 +38,8 @@ namespace NDict
         private static readonly Dictionary<string, VersionedDictionary> books = new Dictionary<string, VersionedDictionary>();
         private static VersionedDictionary currentBook;
         private static readonly string myDirectory = Path.GetDirectoryName(typeof(Program).Assembly.Location);
+        private static readonly string booksPath = Path.Combine(myDirectory, "phrasebooks");
+
         private static KeyValuePair<string, VersionedDictionary>? lastPhraseAndBook;
 
         private static IEnumerable<string> AutocompleteProvider(string commandPattern)
@@ -51,80 +67,72 @@ namespace NDict
 
         private static void Main(string[] args)
         {
-            try
-            {
-                AppDomain.CurrentDomain.ProcessExit += CurrentDomain_ProcessExit;
-                Console.ForegroundColor = ConsoleColor.White;
-                //Console.CancelKeyPress += Console_CancelKeyPress;
-                Console.InputEncoding = System.Text.Encoding.Unicode;
-                Console.OutputEncoding = System.Text.Encoding.Unicode;
-                strings = new Strings(myDirectory, lang: args.Length == 1 ? args[0] : System.Threading.Thread.CurrentThread.CurrentCulture.Name);
+            AppDomain.CurrentDomain.ProcessExit += CurrentDomain_ProcessExit;
+            Console.ForegroundColor = ConsoleColor.White;
+            //Console.CancelKeyPress += Console_CancelKeyPress;
+            Console.InputEncoding = System.Text.Encoding.Unicode;
+            Console.OutputEncoding = System.Text.Encoding.Unicode;
+            strings = new Strings(myDirectory, lang: args.Length == 1 ? args[0] : System.Threading.Thread.CurrentThread.CurrentCulture.Name);
 
-                Console.WriteLine(strings.Get("LoadingData"));
-                Console.Title = strings.Get("LoadingData");
-                Load();
+            Console.WriteLine(strings.Get("LoadingData"));
+            Console.Title = strings.Get("LoadingData");
+            Load();
 
-                nconsole.Bind("open", Books.Open,
-                    "[book]");
-                nconsole.Bind("close", Books.CloseWrapper);
-                nconsole.Bind("create", Books.Create,
-                    "[book]");
-                nconsole.Bind("destroy", Books.Destroy,
-                    "[book]");
-                nconsole.Bind("rename", Books.Rename,
-                    "[book] [new-name]");
-                nconsole.Bind("list", List,
-                    "[phrases/books]",
-                    "phrases in [book]");
+            nconsole.Bind("open", Books.Open,
+                "[book]");
+            nconsole.Bind("close", Books.CloseWrapper);
+            nconsole.Bind("create", Books.Create,
+                "[book]");
+            nconsole.Bind("destroy", Books.Destroy,
+                "[book]");
+            nconsole.Bind("rename", Books.Rename,
+                "[book] [new-name]");
+            nconsole.Bind("list", List,
+                "[phrases/books]",
+                "phrases in [book]");
 
-                nconsole.Bind("add", Phrases.Add,
-                    "[new-phrase]",
-                    "[new-phrase] meaning [description]",
-                    "[new-phrase] to [book]",
-                    "[new-phrase] to [book] meaning [description]",
-                    "[new-phrase] meaning [description] to [book]");
-                nconsole.Bind("see", Phrases.See,
-                    "[phrase]",
-                    "[phrase] in [book]");
-                nconsole.Bind("search", Phrases.Search,
-                    "[phrase]",
-                    "[phrase] in [book]");
-                nconsole.Bind("append", NotImplemented);
-                nconsole.Bind("edit", NotImplemented);
-                nconsole.Bind("remove", Phrases.Remove,
-                    "[phrase]",
-                    "[phrase] from [book]");
-                nconsole.Bind("match", Phrases.Match,
-                    "[pattern]",
-                    "[pattern] by [wildcard/regex]",
-                    "[pattern] in [book]",
-                    "[pattern] in [book] by [wildcard/regex]",
-                    "[pattern] by [wildcard/regex] in [book]");
+            nconsole.Bind("add", Phrases.Add,
+                "[new-phrase]",
+                "[new-phrase] meaning [description]",
+                "[new-phrase] to [book]",
+                "[new-phrase] to [book] meaning [description]",
+                "[new-phrase] meaning [description] to [book]");
+            nconsole.Bind("see", Phrases.See,
+                "[phrase]",
+                "[phrase] in [book]");
+            nconsole.Bind("search", Phrases.Search,
+                "[phrase]",
+                "[phrase] in [book]");
+            nconsole.Bind("append", NotImplemented);
+            nconsole.Bind("edit", NotImplemented);
+            nconsole.Bind("remove", Phrases.Remove,
+                "[phrase]",
+                "[phrase] from [book]");
+            nconsole.Bind("match", Phrases.Match,
+                "[pattern]",
+                "[pattern] by [wildcard/regex]",
+                "[pattern] in [book]",
+                "[pattern] in [book] by [wildcard/regex]",
+                "[pattern] by [wildcard/regex] in [book]");
 
-                nconsole.Bind("test", Phrases.Test,
-                    "[spelling/meaning]",
-                    "[spelling/meaning] of [book]");
+            nconsole.Bind("test", Phrases.Test,
+                "[spelling/meaning]",
+                "[spelling/meaning] of [book]");
 
-                nconsole.Bind("save", SaveWrapper,
-                    "[book]");
+            nconsole.Bind("save", SaveWrapper,
+                "[book]");
 
-                nconsole.BindExit("exit", Exit);
-                nconsole.Bind("language", ChangeLang,
-                    "[lang-id]");
-                nconsole.Alias("language", "lang");
+            nconsole.BindExit("exit", Exit);
+            nconsole.Bind("language", ChangeLang,
+                "[lang-id]");
+            nconsole.Alias("language", "lang");
 
-                nconsole.BindDefault(Phrases.SeeQuick);
-                nconsole.RemoveQuotesWhenCalling = true;
+            nconsole.BindDefault(Phrases.SeeQuick);
+            nconsole.RemoveQuotesWhenCalling = true;
 
-                if (!Console.IsOutputRedirected) Console.Clear();
-                Console.Title = "NDict";
-                Console.WriteLine("{0}\n", strings.Get("Welcome"));
-            }
-            catch
-            {
-                AppDomain.CurrentDomain.ProcessExit -= CurrentDomain_ProcessExit; //此时保存可能损坏已有文件，故阻止保存
-                return;
-            }
+            if (!Console.IsOutputRedirected) Console.Clear();
+            Console.Title = "NDict";
+            Console.WriteLine("{0}\n", strings.Get("Welcome"));
             nconsole.Run(AutocompleteProvider);
         }
 
@@ -217,7 +225,7 @@ namespace NDict
                 {
                     if (books.TryGetValue(bookname, out var book))
                     {
-                        SaveBook(silent: false, bookname, book);
+                        book.Save();
                     }
                     else
                     {
@@ -231,10 +239,11 @@ namespace NDict
         {
             foreach (KeyValuePair<string, VersionedDictionary> book in books)
             {
-                SaveBook(silent, book.Key, book.Value);
+                book.Value.Save();
             }
         }
 
+        [Obsolete]
         private static void SaveBook(bool silent, string bookname, VersionedDictionary book)
         {
             XmlDocument xml = new XmlDocument();
@@ -257,22 +266,24 @@ namespace NDict
 
         private static void Load()
         {
-            DirectoryInfo info = new DirectoryInfo(myDirectory);
-            Console.WriteLine(info.FullName);
-            FileInfo[] files = info.GetFiles("*.ndict", SearchOption.TopDirectoryOnly);
+            var booksBase = new DirectoryInfo(booksPath);
+            if (!booksBase.Exists) booksBase.Create();
+            var booksDir = booksBase.GetDirectories("*", searchOption: SearchOption.TopDirectoryOnly);
+            foreach (var bookDir in booksDir)
+            {
+                books.Add(
+                    bookDir.Name,
+                    new VersionedDictionary(bookDir.FullName));
+            }
+            // 兼容措施，转换成新格式
+            DirectoryInfo baseDirInfo = new DirectoryInfo(myDirectory);
+            FileInfo[] files = baseDirInfo.GetFiles("*.ndict", SearchOption.TopDirectoryOnly);
             foreach (FileInfo file in files)
             {
-                Console.WriteLine(file.FullName);
-                VersionedDictionary book = new VersionedDictionary();
-                XmlDocument xml = new XmlDocument();
-                xml.Load(file.FullName);
-                XmlNode root = xml.SelectSingleNode("book");
-                foreach (XmlElement node in root.ChildNodes)
-                {
-                    Console.Write('.');
-                    book.Add(node.GetAttribute("key"), node.GetAttribute("val"));
-                }
-                books.Add(file.Name.Split(".")[0], book);
+                books.Add(
+                    Path.GetFileNameWithoutExtension(file.Name), 
+                    Compatibility.NDictFileConvert(file, Path.Combine(myDirectory, "phrasebooks")));
+                file.MoveTo(Path.Combine(file.DirectoryName, file.Name + ".old"));
             }
         }
 
@@ -367,7 +378,11 @@ namespace NDict
                 }
                 else
                 {
-                    books.Add(args[0], new VersionedDictionary());
+                    books.Add(
+                        args[0],
+                        new VersionedDictionary(
+                            Path.Combine(booksPath, args[0])
+                            ));
                     Console.WriteLine(strings.Get("AddBookSuccess"), args[0]);
                 }
             }
@@ -711,6 +726,12 @@ namespace NDict
                             args,
                             matchPreps,
                             out var preps);
+
+                    if (string.IsNullOrEmpty(matchExp))
+                    {
+                        Console.WriteLine(strings.Get("MatchPatternCannotBeEmpty"));
+                        return;
+                    }
 
                     if (preps.TryGetValue("in", out var bookName))
                     {
