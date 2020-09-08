@@ -9,6 +9,11 @@ using System.Xml;
 
 namespace NDict
 {
+    static class Compatibility
+    {
+
+    }
+
     internal class Program
     {
         private static readonly NConsole nconsole = new NConsole
@@ -16,10 +21,10 @@ namespace NDict
             Prompt = "phrasebook>"
         };
         private static Strings strings;
-        private static readonly Dictionary<string, Dictionary<string, string>> books = new Dictionary<string, Dictionary<string, string>>();
-        private static Dictionary<string, string> currentBook;
+        private static readonly Dictionary<string, VersionedDictionary> books = new Dictionary<string, VersionedDictionary>();
+        private static VersionedDictionary currentBook;
         private static readonly string myDirectory = Path.GetDirectoryName(typeof(Program).Assembly.Location);
-        private static KeyValuePair<string, Dictionary<string, string>>? lastPhraseAndBook;
+        private static KeyValuePair<string, VersionedDictionary>? lastPhraseAndBook;
 
         private static IEnumerable<string> AutocompleteProvider(string commandPattern)
         {
@@ -39,14 +44,6 @@ namespace NDict
                         else yield return phrase;
                     }
                     yield break;
-                case "[phrases/books]":
-                    yield return "phrases";
-                    yield return "books";
-                    yield break;
-                case "[method]":
-                    yield return "wildcard";
-                    yield return "regex";
-                    yield break;
                 default:
                     yield break;
             }
@@ -54,68 +51,80 @@ namespace NDict
 
         private static void Main(string[] args)
         {
-            AppDomain.CurrentDomain.ProcessExit += CurrentDomain_ProcessExit;
-            Console.ForegroundColor = ConsoleColor.White;
-            //Console.CancelKeyPress += Console_CancelKeyPress;
-            Console.InputEncoding = System.Text.Encoding.Unicode;
-            Console.OutputEncoding = System.Text.Encoding.Unicode;
-            strings = new Strings(myDirectory, lang: args.Length == 1 ? args[0] : System.Threading.Thread.CurrentThread.CurrentCulture.Name);
+            try
+            {
+                AppDomain.CurrentDomain.ProcessExit += CurrentDomain_ProcessExit;
+                Console.ForegroundColor = ConsoleColor.White;
+                //Console.CancelKeyPress += Console_CancelKeyPress;
+                Console.InputEncoding = System.Text.Encoding.Unicode;
+                Console.OutputEncoding = System.Text.Encoding.Unicode;
+                strings = new Strings(myDirectory, lang: args.Length == 1 ? args[0] : System.Threading.Thread.CurrentThread.CurrentCulture.Name);
 
-            Console.WriteLine(strings.Get("LoadingData"));
-            Console.Title = strings.Get("LoadingData");
-            Load();
+                Console.WriteLine(strings.Get("LoadingData"));
+                Console.Title = strings.Get("LoadingData");
+                Load();
 
-            nconsole.Bind("open", Books.Open, 
-                "[book]");
-            nconsole.Bind("close", Books.CloseWrapper);
-            nconsole.Bind("create", Books.Create, 
-                "[book]");
-            nconsole.Bind("destroy", Books.Destroy, 
-                "[book]");
-            nconsole.Bind("rename", Books.Rename, 
-                "[book] [new-name]");
-            nconsole.Bind("list", List, 
-                "[phrases/books]",
-                "phrases in [book]");
+                nconsole.Bind("open", Books.Open,
+                    "[book]");
+                nconsole.Bind("close", Books.CloseWrapper);
+                nconsole.Bind("create", Books.Create,
+                    "[book]");
+                nconsole.Bind("destroy", Books.Destroy,
+                    "[book]");
+                nconsole.Bind("rename", Books.Rename,
+                    "[book] [new-name]");
+                nconsole.Bind("list", List,
+                    "[phrases/books]",
+                    "phrases in [book]");
 
-            nconsole.Bind("add", Phrases.Add, 
-                "[new-phrase]",
-                "[new-phrase] meaning [description]",
-                "[new-phrase] to [book]",
-                "[new-phrase] meaning [description] to [book]");
-            nconsole.Bind("see", Phrases.See,
-                "[phrase]",
-                "[phrase] in [book]");
-            nconsole.Bind("search", Phrases.Search,
-                "[phrase]",
-                "[phrase] in [book]");
-            //nconsole.Bind("append", Phrases.Append);
-            nconsole.Bind("edit", Phrases.Edit);
-            nconsole.Bind("remove", Phrases.Remove,
-                "[phrase]",
-                "[phrase] from [book]");
-            nconsole.Bind("match", Phrases.Match,
-                "[pattern]",
-                "[pattern] by [method]",
-                "[pattern] in [book]",
-                "[pattern] by [method] in [book]");
+                nconsole.Bind("add", Phrases.Add,
+                    "[new-phrase]",
+                    "[new-phrase] meaning [description]",
+                    "[new-phrase] to [book]",
+                    "[new-phrase] to [book] meaning [description]",
+                    "[new-phrase] meaning [description] to [book]");
+                nconsole.Bind("see", Phrases.See,
+                    "[phrase]",
+                    "[phrase] in [book]");
+                nconsole.Bind("search", Phrases.Search,
+                    "[phrase]",
+                    "[phrase] in [book]");
+                nconsole.Bind("append", NotImplemented);
+                nconsole.Bind("edit", NotImplemented);
+                nconsole.Bind("remove", Phrases.Remove,
+                    "[phrase]",
+                    "[phrase] from [book]");
+                nconsole.Bind("match", Phrases.Match,
+                    "[pattern]",
+                    "[pattern] by [wildcard/regex]",
+                    "[pattern] in [book]",
+                    "[pattern] in [book] by [wildcard/regex]",
+                    "[pattern] by [wildcard/regex] in [book]");
 
-            nconsole.Bind("test", Phrases.Test);
+                nconsole.Bind("test", Phrases.Test,
+                    "[spelling/meaning]",
+                    "[spelling/meaning] of [book]");
 
-            nconsole.Bind("save", SaveWrapper,
-                "[book]");
+                nconsole.Bind("save", SaveWrapper,
+                    "[book]");
 
-            nconsole.BindExit("exit", Exit);
-            nconsole.Bind("language", ChangeLang,
-                "[id]");
-            nconsole.Alias("language", "lang");
+                nconsole.BindExit("exit", Exit);
+                nconsole.Bind("language", ChangeLang,
+                    "[lang-id]");
+                nconsole.Alias("language", "lang");
 
-            nconsole.BindDefault(Phrases.SeeQuick);
-            nconsole.RemoveQuotesWhenCalling = true;
+                nconsole.BindDefault(Phrases.SeeQuick);
+                nconsole.RemoveQuotesWhenCalling = true;
 
-            Console.Clear();
-            Console.Title = "NDict";
-            Console.WriteLine("{0}\n", strings.Get("Welcome"));
+                if (!Console.IsOutputRedirected) Console.Clear();
+                Console.Title = "NDict";
+                Console.WriteLine("{0}\n", strings.Get("Welcome"));
+            }
+            catch
+            {
+                AppDomain.CurrentDomain.ProcessExit -= CurrentDomain_ProcessExit; //此时保存可能损坏已有文件，故阻止保存
+                return;
+            }
             nconsole.Run(AutocompleteProvider);
         }
 
@@ -165,7 +174,7 @@ namespace NDict
                 {
                     if (args[1] == "in")
                     {
-                        Dictionary<string, string> oldBook = currentBook;
+                        VersionedDictionary oldBook = currentBook; //TO-DO: 此处实现别扭，应改
                         if (books.TryGetValue(args[2], out currentBook))
                         {
                             Phrases.List();
@@ -206,7 +215,7 @@ namespace NDict
             {
                 foreach (string? bookname in args)
                 {
-                    if (books.TryGetValue(bookname, out Dictionary<string, string>? book))
+                    if (books.TryGetValue(bookname, out var book))
                     {
                         SaveBook(silent: false, bookname, book);
                     }
@@ -220,13 +229,13 @@ namespace NDict
 
         private static void SaveAll(bool silent = false)
         {
-            foreach (KeyValuePair<string, Dictionary<string, string>> book in books)
+            foreach (KeyValuePair<string, VersionedDictionary> book in books)
             {
                 SaveBook(silent, book.Key, book.Value);
             }
         }
 
-        private static void SaveBook(bool silent, string bookname, Dictionary<string, string> book)
+        private static void SaveBook(bool silent, string bookname, VersionedDictionary book)
         {
             XmlDocument xml = new XmlDocument();
             xml.AppendChild(xml.CreateXmlDeclaration("1.0", "utf-8", null));
@@ -254,7 +263,7 @@ namespace NDict
             foreach (FileInfo file in files)
             {
                 Console.WriteLine(file.FullName);
-                Dictionary<string, string> book = new Dictionary<string, string>();
+                VersionedDictionary book = new VersionedDictionary();
                 XmlDocument xml = new XmlDocument();
                 xml.Load(file.FullName);
                 XmlNode root = xml.SelectSingleNode("book");
@@ -281,7 +290,7 @@ namespace NDict
                 }
                 else
                 {
-                    if (books.TryGetValue(args[0], out Dictionary<string, string> book))
+                    if (books.TryGetValue(args[0], out var book))
                     {
                         currentBook = book;
                         nconsole.Prompt = string.Format("phrasebook/{0}>", args[0]);
@@ -289,7 +298,7 @@ namespace NDict
                     else
                     {
                         bool found = false;
-                        foreach (KeyValuePair<string, Dictionary<string, string>> bookSimilar in books)
+                        foreach (KeyValuePair<string, VersionedDictionary> bookSimilar in books)
                         {
                             if (bookSimilar.Key.Contains(args[0]))
                             {
@@ -340,9 +349,9 @@ namespace NDict
                     return;
                 }
                 Console.WriteLine(strings.Get("ListingBooks"));
-                foreach (KeyValuePair<string, Dictionary<string, string>> i in books)
+                foreach (KeyValuePair<string, VersionedDictionary> book in books)
                 {
-                    Console.WriteLine(i.Key);
+                    Console.WriteLine(book.Key);
                 }
             }
 
@@ -358,7 +367,7 @@ namespace NDict
                 }
                 else
                 {
-                    books.Add(args[0], new Dictionary<string, string>());
+                    books.Add(args[0], new VersionedDictionary());
                     Console.WriteLine(strings.Get("AddBookSuccess"), args[0]);
                 }
             }
@@ -405,7 +414,7 @@ namespace NDict
                 {
                     if (!books.ContainsKey(args[1]))
                     {
-                        Dictionary<string, string>? book = books[args[0]];
+                        VersionedDictionary? book = books[args[0]];
                         books.Remove(args[0]);
                         books.Add(args[1], book);
                         FileInfo file = new FileInfo(myDirectory + "/" + args[0] + ".ndict");
@@ -432,7 +441,7 @@ namespace NDict
         public static class Phrases
         {      
             private static bool TryAdd(
-                ref Dictionary<string, string> book,
+                ref VersionedDictionary book,
                 string phrase, string description)
             {
                 if (book.ContainsKey(phrase))
@@ -443,7 +452,7 @@ namespace NDict
                 else
                 {
                     book.Add(phrase, description);
-                    lastPhraseAndBook = new KeyValuePair<string, Dictionary<string, string>>(phrase, book);
+                    lastPhraseAndBook = new KeyValuePair<string, VersionedDictionary>(phrase, book);
                     Console.WriteLine(strings.Get("AddPhraseSuccess"), phrase);
                     return true;
                 }
@@ -452,7 +461,7 @@ namespace NDict
             private static bool TryCreateContext(
                 ref Dictionary<string, string> preps,
                 string keyPrep,
-                out Dictionary<string, string> context,
+                out VersionedDictionary context,
                 bool askIfNull,
                 bool allowGlobal = false)
             {
@@ -577,7 +586,7 @@ namespace NDict
                         {
                             nconsole.WriteTable(args[0], description);
                             lastPhraseAndBook = 
-                                new KeyValuePair<string, Dictionary<string, string>>
+                                new KeyValuePair<string, VersionedDictionary>
                                 (args[0], context);
                         }
                         else
@@ -611,7 +620,7 @@ namespace NDict
                     if (currentBook == null)
                     {
                         bool found = false;
-                        foreach (KeyValuePair<string, Dictionary<string, string>> book in books)
+                        foreach (var book in books)
                         {
                             foreach (KeyValuePair<string, string> phrase in book.Value)
                             {
@@ -620,7 +629,7 @@ namespace NDict
                                     nconsole.WriteTable(phrase.Key, phrase.Value);
                                     if (!found)
                                     {
-                                        lastPhraseAndBook = new KeyValuePair<string, Dictionary<string, string>>(args[0], book.Value);
+                                        lastPhraseAndBook = new KeyValuePair<string, VersionedDictionary>(args[0], book.Value);
                                     }
                                     found = true;
                                 }
@@ -641,7 +650,7 @@ namespace NDict
                                 nconsole.WriteTable(phrase.Key, phrase.Value);
                                 if (!found)
                                 {
-                                    lastPhraseAndBook = new KeyValuePair<string, Dictionary<string, string>>(args[0], currentBook);
+                                    lastPhraseAndBook = new KeyValuePair<string, VersionedDictionary>(args[0], currentBook);
                                 }
                                 found = true;
                             }
@@ -654,7 +663,7 @@ namespace NDict
                 }
                 else if (args.Count == 3 && args[1] == "in")
                 {
-                    if (books.TryGetValue(args[2], out Dictionary<string, string> book))
+                    if (books.TryGetValue(args[2], out VersionedDictionary book))
                     {
                         bool found = false;
                         foreach (KeyValuePair<string, string> phrase in book)
@@ -664,7 +673,7 @@ namespace NDict
                                 nconsole.WriteTable(phrase.Key, phrase.Value);
                                 if (!found)
                                 {
-                                    lastPhraseAndBook = new KeyValuePair<string, Dictionary<string, string>>(args[0], book);
+                                    lastPhraseAndBook = new KeyValuePair<string, VersionedDictionary>(args[0], book);
                                 }
                                 found = true;
                             }
@@ -834,7 +843,7 @@ namespace NDict
             {
                 if (currentBook == null)
                 {
-                    foreach (KeyValuePair<string, Dictionary<string, string>> book in books)
+                    foreach (KeyValuePair<string, VersionedDictionary> book in books)
                     {
                         Console.WriteLine(strings.Get("ListingPhrases"), book.Key);
                         if (book.Value.Count != 0)
@@ -896,6 +905,7 @@ namespace NDict
 
             public static void Test(List<string> args)
             {
+                /*
                 Dictionary<string, string> bookForTest = currentBook;
                 if (args.Count == 0)
                 {
@@ -923,6 +933,7 @@ namespace NDict
                 Console.WriteLine(selectedWord);
                 bool[] map = new bool[keys.Count];
                 nconsole.Choose(keys);
+                */
             }
         }
 

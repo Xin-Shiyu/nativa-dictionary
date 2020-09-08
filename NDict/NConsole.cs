@@ -138,6 +138,10 @@ namespace Nativa
             if (commandFuncs.TryGetValue(oldCommand, out CommandDelegate command))
             {
                 commandFuncs.Add(newCommand, command);
+                if (commandPatterns.TryGetValue(oldCommand, out var patternList))
+                {
+                    commandPatterns.Add(newCommand, patternList);
+                }
             }
             else
             {
@@ -170,23 +174,47 @@ namespace Nativa
                 {
                     if (matchedPattern.StartsWith('['))
                     {
-                        if (ArgumentAutocompleteProvider != null)
+                        if (!matchedPattern.Contains('/'))
+                        {
+                            if (ArgumentAutocompleteProvider != null)
+                            {
+                                if (commandPart.Length != 0)
+                                {
+                                    var partialArg = CommandUtilities.Split(commandPart.ToString(), ' ', '\"')[^1];
+                                    foreach (var possibility in ArgumentAutocompleteProvider(matchedPattern))
+                                    {
+                                        if (possibility.StartsWith(partialArg))
+                                            yield return possibility[partialArg.Length..];
+                                    }
+                                }
+                                else
+                                {
+                                    foreach (var possibility in ArgumentAutocompleteProvider(matchedPattern))
+                                    {
+                                        yield return possibility;
+                                    }
+                                }
+                            }
+                        }
+                        else // 对于用 / 分开的列表
                         {
                             if (commandPart.Length != 0)
                             {
                                 var partialArg = CommandUtilities.Split(commandPart.ToString(), ' ', '\"')[^1];
-                                foreach (var possibility in ArgumentAutocompleteProvider(matchedPattern))
+                                foreach (var possibility in matchedPattern[1..^1].Split('/'))
                                 {
-                                    if (possibility.StartsWith(partialArg)) yield return possibility[partialArg.Length..];
+                                    if (possibility.StartsWith(partialArg))
+                                        yield return possibility[partialArg.Length..];
                                 }
                             }
                             else
                             {
-                                foreach (var possibility in ArgumentAutocompleteProvider(matchedPattern))
+                                foreach (var possibility in matchedPattern[1..^1].Split('/'))
                                 {
                                     yield return possibility;
                                 }
                             }
+                            
                         }
                     }
                     else
@@ -287,7 +315,7 @@ namespace Nativa
                             }
                             break;
                         case "clear":
-                            Console.Clear();
+                            if (!Console.IsOutputRedirected) Console.Clear();
                             break;
                         case "debug":
                             DebugMode = !DebugMode;
