@@ -229,14 +229,15 @@ namespace Nativa
             bool noColorizing = true)
         { // 本函数的全部实现不作为最终方案，现在只是一个过渡阶段。
             RenderManager.currentTips?.Erase();
-            var parts = CommandUtilities.Split(res.ToString(), ' ', '\"'); // 直接用 nconsole 的命令分解方式其实是耦合度很高的，上色和命令语法提示应该都由上层提供
-            int left = 0;
+                                                                                                                                              
             if (noColorizing)
             {
-                RecolorText(mostLeft, mostTop, left, res.Length, res, ConsoleColor.White);
+                RecolorText(mostLeft, mostTop, 0, res.Length, res, ConsoleColor.White);
             }
             else // 染色可以用 TempText 重新实现
             {
+                var parts = CommandUtilities.Split(res.ToString(), ' ', '\"'); // 直接用 nconsole 的命令分解方式其实是耦合度很高的，上色和命令语法提示应该都由上层提供
+                int left = 0;                                                     
                 bool doColor = true;
                 int end = parts.Count - 1;
                 for (int i = 0; i <= end; ++i)
