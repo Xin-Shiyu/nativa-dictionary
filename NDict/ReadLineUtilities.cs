@@ -225,21 +225,29 @@ namespace Nativa
             StringBuilder res,
             int mostLeft,
             int mostTop,
-            string tips = "")
+            string tips = "",
+            bool noColorizing = true)
         { // 本函数的全部实现不作为最终方案，现在只是一个过渡阶段。
             RenderManager.currentTips?.Erase();
             var parts = CommandUtilities.Split(res.ToString(), ' ', '\"'); // 直接用 nconsole 的命令分解方式其实是耦合度很高的，上色和命令语法提示应该都由上层提供
             int left = 0;
-            bool doColor = true;
-            int end = parts.Count - 1;
-            for (int i = 0; i <= end; ++i)
+            if (noColorizing)
             {
-                var len = parts[i].Length;
-                if (i != end) ++len;
-                if (doColor) RecolorText(mostLeft, mostTop, left, len, res, ConsoleColor.Cyan);
-                else RecolorText(mostLeft, mostTop, left, len, res, ConsoleColor.White);
-                left += len;
-                doColor = !doColor;
+                RecolorText(mostLeft, mostTop, left, res.Length, res, ConsoleColor.White);
+            }
+            else // 染色可以用 TempText 重新实现
+            {
+                bool doColor = true;
+                int end = parts.Count - 1;
+                for (int i = 0; i <= end; ++i)
+                {
+                    var len = parts[i].Length;
+                    if (i != end) ++len;
+                    if (doColor) RecolorText(mostLeft, mostTop, left, len, res, ConsoleColor.Cyan);
+                    else RecolorText(mostLeft, mostTop, left, len, res, ConsoleColor.White);
+                    left += len;
+                    doColor = !doColor;
+                }
             }
             if (tips != "")
             {

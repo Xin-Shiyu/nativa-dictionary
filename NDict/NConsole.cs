@@ -403,7 +403,7 @@ namespace Nativa
 
     class CommandUtilities
     {
-        public static List<string> Split(string str, char delimiter, char skip)
+        public static List<string> Split(string str, char delimiter, char skip) //TO-DO: 支持转义字符表示引号
         {
             List<string> res = new List<string>();
             int charCount = 0;
